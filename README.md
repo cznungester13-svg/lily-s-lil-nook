@@ -4,5 +4,6 @@ This project is a simple static storefront site and is ready to publish with Git
 
 - Open index.html for the landing page.
 - Open lilys-lil-nook.html for the shop experience.
-- For GitHub Pages, publish the repository root from the main branch.
-- The deployment workflow is defined in .github/workflows/deploy-pages.yml.
+- Open admin.html for the simple admin dashboard.
+- The admin password is currently set to lily-admin-2026.
+- For Vercel deployment, publish the repository root from the main branch.

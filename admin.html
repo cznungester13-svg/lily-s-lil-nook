@@ -1,0 +1,216 @@
+Is <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin • Lily's Lil' Nook</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --plum: #3E2438;
+      --paper: #FBF4E8;
+      --ink: #2B2320;
+      --mustard: #D4A24C;
+      --sage: #7C8B6F;
+      --line: rgba(43,35,32,0.14);
+      --danger: #b23b3b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Work Sans', sans-serif;
+      background: var(--paper);
+      color: var(--ink);
+    }
+    h1, h2, h3 { font-family: 'Fraunces', serif; }
+    .wrap { max-width: 1160px; margin: 0 auto; padding: 32px 20px 64px; }
+    .card {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 22px;
+      box-shadow: 0 10px 24px rgba(43,25,38,0.06);
+    }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+    .topbar a { color: var(--plum); text-decoration: none; font-weight: 600; }
+    .login-screen { max-width: 420px; margin: 40px auto 0; }
+    .field { margin-bottom: 12px; }
+    .field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+    .field input { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; }
+    .btn {
+      display: inline-block; border: none; border-radius: 999px; padding: 10px 16px; font-weight: 600; cursor: pointer;
+      background: var(--plum); color: #fff;
+    }
+    .btn.secondary { background: var(--mustard); color: var(--plum); }
+    .btn.danger { background: var(--danger); color: #fff; }
+    .hidden { display: none; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 18px; }
+    .stat { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
+    .stat b { display: block; font-size: 20px; margin-top: 4px; }
+    .panel { margin-top: 18px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--sage); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .pill { display: inline-block; padding: 4px 8px; border-radius: 999px; background: var(--paper); font-size: 12px; }
+    .muted { color: #7a6c65; }
+    .row-actions button { margin-right: 6px; }
+    .notice { margin: 10px 0 0; font-size: 14px; color: var(--plum); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <h1>Admin dashboard</h1>
+      <a href="index.html">← Back to storefront</a>
+    </div>
+
+    <div id="loginScreen" class="card login-screen">
+      <h2>Access the dashboard</h2>
+      <p class="muted">Enter the admin password to view and manage storefront items.</p>
+      <form id="loginForm">
+        <div class="field">
+          <label for="adminPass">Password</label>
+          <input id="adminPass" type="password" placeholder="Enter admin password" />
+        </div>
+        <button class="btn" type="submit">Enter dashboard</button>
+      </form>
+      <p id="loginMessage" class="notice"></p>
+    </div>
+
+    <div id="dashboard" class="hidden">
+      <div class="card">
+        <div class="topbar" style="margin-bottom: 8px;">
+          <div>
+            <h2 style="margin: 0;">Manage the nook</h2>
+            <p class="muted" style="margin: 4px 0 0;">Review resale listings and public chat messages.</p>
+          </div>
+          <button class="btn secondary" id="refreshBtn">Refresh</button>
+        </div>
+        <div class="stats">
+          <div class="stat"><span class="muted">Listings</span><b id="listingCount">0</b></div>
+          <div class="stat"><span class="muted">Messages</span><b id="messageCount">0</b></div>
+        </div>
+
+        <div class="panel">
+          <h3>Resale listings</h3>
+          <div id="listingsTable"></div>
+        </div>
+
+        <div class="panel">
+          <h3>Chat messages</h3>
+          <div id="messagesTable"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const ADMIN_PASSWORD = 'lily-admin-2026';
+    const SUPABASE_URL = 'https://vkzoewbwdngcpktuajbf.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_wciW1BLByU5r7W-8OrrGTw_umtAOGjt';
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    function escapeHtml(value) {
+      const div = document.createElement('div');
+      div.textContent = value == null ? '' : String(value);
+      return div.innerHTML;
+    }
+
+    function showDashboard() {
+      document.getElementById('loginScreen').classList.add('hidden');
+      document.getElementById('dashboard').classList.remove('hidden');
+    }
+
+    async function loadAdminData() {
+      const listingsEl = document.getElementById('listingsTable');
+      const messagesEl = document.getElementById('messagesTable');
+      const listingCountEl = document.getElementById('listingCount');
+      const messageCountEl = document.getElementById('messageCount');
+
+      listingsEl.innerHTML = '<p class="muted">Loading listings…</p>';
+      messagesEl.innerHTML = '<p class="muted">Loading messages…</p>';
+
+      try {
+        const [{ data: listings, error: listingError }, { data: messages, error: messageError }] = await Promise.all([
+          sb.from('resale_items').select('*').order('created_at', { ascending: false }),
+          sb.from('chat_messages').select('*').order('created_at', { ascending: true })
+        ]);
+
+        if (listingError) throw listingError;
+        if (messageError) throw messageError;
+
+        listingCountEl.textContent = (listings || []).length;
+        messageCountEl.textContent = (messages || []).length;
+
+        listingsEl.innerHTML = (listings && listings.length)
+          ? `<table><thead><tr><th>Item</th><th>Seller</th><th>Category</th><th>Price</th><th>Actions</th></tr></thead><tbody>${(listings || []).map(item => `
+              <tr>
+                <td><strong>${escapeHtml(item.name || 'Untitled')}</strong><br><span class="muted">${escapeHtml(item.condition || '')}</span></td>
+                <td>${escapeHtml(item.seller || 'Unknown')}</td>
+                <td>${escapeHtml(item.category || '')}</td>
+                <td>$${Number(item.price || 0).toFixed(2)}</td>
+                <td class="row-actions"><button class="btn danger" data-delete-id="${item.id}" data-table="resale_items">Delete</button></td>
+              </tr>`).join('')}</tbody></table>`
+          : '<p class="muted">No resale listings yet.</p>';
+
+        messagesEl.innerHTML = (messages && messages.length)
+          ? `<table><thead><tr><th>Who</th><th>Message</th><th>Time</th><th>Actions</th></tr></thead><tbody>${(messages || []).map(message => `
+              <tr>
+                <td>${escapeHtml(message.who || 'Unknown')}</td>
+                <td>${escapeHtml(message.text || '')}</td>
+                <td>${escapeHtml(new Date(message.created_at).toLocaleString())}</td>
+                <td class="row-actions"><button class="btn danger" data-delete-id="${message.id}" data-table="chat_messages">Delete</button></td>
+              </tr>`).join('')}</tbody></table>`
+          : '<p class="muted">No chat messages yet.</p>';
+      } catch (error) {
+        listingsEl.innerHTML = '<p class="muted">Could not load data right now.</p>';
+        messagesEl.innerHTML = '<p class="muted">Could not load data right now.</p>';
+        console.error(error);
+      }
+    }
+
+    async function deleteRow(table, id) {
+      if (!id) return;
+      const confirmed = window.confirm('Delete this item?');
+      if (!confirmed) return;
+      try {
+        const { error } = await sb.from(table).delete().eq('id', id);
+        if (error) throw error;
+        await loadAdminData();
+      } catch (error) {
+        console.error(error);
+        alert('Could not delete that row.');
+      }
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', function (event) {
+      event.preventDefault();
+      const value = document.getElementById('adminPass').value.trim();
+      const messageEl = document.getElementById('loginMessage');
+      if (value === ADMIN_PASSWORD) {
+        messageEl.textContent = 'Welcome back.';
+        showDashboard();
+        loadAdminData();
+      } else {
+        messageEl.textContent = 'That password is not correct.';
+      }
+    });
+
+    document.getElementById('refreshBtn').addEventListener('click', loadAdminData);
+    document.addEventListener('click', function (event) {
+      const button = event.target.closest('[data-delete-id]');
+      if (!button) return;
+      deleteRow(button.dataset.table, button.dataset.deleteId);
+    });
+  </script>
+</body>
+</html>
