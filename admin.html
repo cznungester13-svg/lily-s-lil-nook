@@ -114,10 +114,21 @@ Is <!DOCTYPE html>
   </div>
 
   <script>
-    const ADMIN_PASSWORD = 'lily-admin-2026';
+    // Plaintext admin passwords are removed from the page.
+    // This is still a client-side demo gate; for production, migrate admin auth to a server.
+    const ADMIN_PASSWORD_HASH = 'aab613b9bf7cd18a4b33bbff8d30f39815bec325afaeb9f931c365fef3196f5d';
     const SUPABASE_URL = 'https://vkzoewbwdngcpktuajbf.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_wciW1BLByU5r7W-8OrrGTw_umtAOGjt';
     const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    async function hashPassword(password) {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(password);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      return Array.from(new Uint8Array(hashBuffer))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+    }
 
     function escapeHtml(value) {
       const div = document.createElement('div');
@@ -192,11 +203,16 @@ Is <!DOCTYPE html>
       }
     }
 
-    document.getElementById('loginForm').addEventListener('submit', function (event) {
+    document.getElementById('loginForm').addEventListener('submit', async function (event) {
       event.preventDefault();
       const value = document.getElementById('adminPass').value.trim();
       const messageEl = document.getElementById('loginMessage');
-      if (value === ADMIN_PASSWORD) {
+      if (!value) {
+        messageEl.textContent = 'Enter the admin password to continue.';
+        return;
+      }
+      const hash = await hashPassword(value);
+      if (hash === ADMIN_PASSWORD_HASH) {
         messageEl.textContent = 'Welcome back.';
         showDashboard();
         loadAdminData();
